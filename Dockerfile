@@ -18,5 +18,5 @@ ENV FLASK_RUN_HOST=0.0.0.0
 # Öffne den Flask-Standardport
 EXPOSE 5000
 
-# Starte die Flask-Anwendung
-CMD ["flask", "run"]
+# Starten der Flask-Anwendung
+CMD ["python", "app.py"]
