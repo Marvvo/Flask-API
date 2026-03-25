@@ -1,0 +1,59 @@
+name: Deploy Clima Flask API
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Docker Image bauen
+      - name: Build Docker Image
+        run: |
+          docker build -t clima-flask:latest .
+
+      # Image als tar exportieren (Transfer auf Server)
+      - name: Save Docker Image
+        run: |
+          docker save clima-flask:latest -o clima-flask.tar
+
+      # Deploy per SSH
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            # auf Server das alte Image stoppen & löschen
+            docker stop climaapi || true
+            docker rm climaapi || true
+            docker rmi clima-flask:latest || true
+
+      # Kopieren des Images auf den Server
+      - name: Copy Docker Image to Server
+        uses: appleboy/scp-action@v0.1.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "clima-flask.tar"
+          target: "~/"
+
+      # Auf dem Server laden & Container starten
+      - name: Load Docker Image & Run Container
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            docker load -i ~/clima-flask.tar
+            docker run -d --name climaapi --env-file /home/deploy/.env clima-flask:latest
+            docker network connect docker_app-network climaapi
